@@ -111,7 +111,7 @@
 ### 環境構築
 **Dockerfile**
 ```Dockerfile:
-FROM php:7.3-apache
+FROM php:7.4-apache
 
 RUN apt update && apt-get install -y git libzip-dev
 RUN docker-php-ext-install pdo_mysql zip
@@ -258,3 +258,14 @@ mix.browserSync({
     <script src="/js/app.js?id=87459a9d906e11120dd5" defer=""></script>
   ```
   
+### API以外のアクセス制御の実装
+
+- APIのURL以外のアクセス周りを実装する
+
+**ルーティング**
+- `routes/web.php`を以下のように編集
+```php:
+Route::get('/{any?}', fn() => view('index'))->where('any', '.+');
+```
+- 上記はAPI以外のURLはindexテンプレートを返す (画面遷移はフロントエンドのVueRouterが制御)
+- 
