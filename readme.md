@@ -172,6 +172,7 @@ services:
     ports:
       - 80:80
       - 3000:3000
+      - 8000:8000
 ```
 **container run**
 ```sh:
@@ -187,6 +188,7 @@ root@615eb468b2ff:/var/www# composer create-project --prefer-dist "laravel/larav
 - edit composer.json
 ```json:
 // ... require
+"php": "^7.4",
 "barryvdh/laravel-debugbar": "*",
 "barryvdh/laravel-ide-helper": "*",
 ```
@@ -217,8 +219,6 @@ DB_PASSWORD=pass
 [*.{yml,json,scss,html,js,vue,blade.php}]
 indent_size = 2
 ```
-- open blowser
-- http://localhost/
 
 **Frontend**
 
@@ -238,14 +238,16 @@ const mix = require('laravel-mix');
 
 // mix.js('resources/js/app.js', 'public/js').sass('resources/sass/app.scss', 'public/css');
 mix.browserSync({
-    proxy: '0.0.0.0:80',
+    proxy: '0.0.0.0:8000',
     open: false
   })
   .js('resources/js/app.js', 'public/js')
+  .sass('resources/sass/app.scss', 'public/css')
   .version()
 ```
 - browserSync: JavaScriptやPHPファイルが変更されたときに自動的にブラウザがリロードされるようになる
 - js: JavaScriptとVueコンポーネントをコンパイル
+- sass: SCSSをコンパイル (SCSSファイル予め用意していたものを`resources/sass/app.scss`に格納する)
 - version: コンパイルしたファイルのバージョニングを有効化
   - ブラウザは一度取得したファイルをキャッシュに保存するので、ファイルの内容を変更してもページに反映されないことがある
   - これを有効にすることで、ビルドのたびにコンパイルしたファイルのURLにランダムな文字列が付けられる
@@ -268,4 +270,131 @@ mix.browserSync({
 Route::get('/{any?}', fn() => view('index'))->where('any', '.+');
 ```
 - 上記はAPI以外のURLはindexテンプレートを返す (画面遷移はフロントエンドのVueRouterが制御)
-- 
+
+**テンプレート**
+- `resources/views/index.blade.php`を作成
+```php:
+<!doctype html>
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ config('app.name') }}</title>
+
+  <!-- Scripts -->
+  <script src="{{ mix('js/app.js') }}" defer></script>
+
+  <!-- Fonts -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Merriweather|Roboto:400">
+  <link rel="stylesheet" href="https://unpkg.com/ionicons@4.2.2/dist/css/ionicons.min.css">
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="{{ asset('css/app.scss') }}">
+</head>
+<body>
+  <div id="app"></div>
+</body>
+</html>
+```
+
+**JavaScript**
+- `resources/js/app.js`を作成
+```js:
+import Vue from 'vue'
+
+new Vue({
+  el: '#app',
+  template: '<h1>Hello world</h1>'
+})
+```
+
+**フロントのビルド**
+- ビルドコマンドはnpmスクリプトにまとめられているので、以下のコマンドで監視モードのコンパイルが走る
+- ファイルの変更があるたびに自動的に再度コンパイルが実行される
+- 下記のコマンドを実行することで監視モードに入る
+```sh:
+root@1d5a5d91dadb:/var/www/laravel# npm run watch
+```
+
+<details>
+<summary>初回のwatch実行時</summary>
+
+- 下記のようなログの出力後に処理が終わるが
+- これは、必要なパッケージをLaravel Mixがインストールしている記録でありエラーではない
+- 再度`npm run watch`を実行すれば問題なく動作する
+```sh:
+root@d885bd7fe28d:/var/www/laravel# npm run watch
+
+> @ watch /var/www/laravel
+> npm run development -- --watch
+
+
+> @ development /var/www/laravel
+> cross-env NODE_ENV=development node_modules/webpack/bin/webpack.js --progress --hide-modules --config=node_modules/laravel-mix/setup/webpack.config.js "--watch"
+
+        Additional dependencies must be installed. This will only take a moment.
+ 
+        Running: npm install vue-template-compiler --save-dev --production=false
+ 
+npm WARN optional SKIPPING OPTIONAL DEPENDENCY: fsevents@1.2.11 (node_modules/fsevents):
+npm WARN notsup SKIPPING OPTIONAL DEPENDENCY: Unsupported platform for fsevents@1.2.11: wanted {"os":"darwin","arch":"any"} (current: {"os":"linux","arch":"x64"})
+
+        Okay, done. The following packages have been installed and saved to your package.json dependencies list:
+ 
+        - vue-template-compiler
+ 
+        Additional dependencies must be installed. This will only take a moment.
+ 
+        Running: npm install browser-sync browser-sync-webpack-plugin@2.0.1 --save-dev --production=false
+ 
+npm WARN browser-sync-webpack-plugin@2.0.1 requires a peer of webpack@^1 || ^2 || ^3 but none is installed. You must install peer dependencies yourself.
+npm WARN optional SKIPPING OPTIONAL DEPENDENCY: fsevents@1.2.11 (node_modules/fsevents):
+npm WARN notsup SKIPPING OPTIONAL DEPENDENCY: Unsupported platform for fsevents@1.2.11: wanted {"os":"darwin","arch":"any"} (current: {"os":"linux","arch":"x64"})
+
+        Okay, done. The following packages have been installed and saved to your package.json dependencies list:
+ 
+        - browser-sync
+ 
+        - browser-sync-webpack-plugin@2.0.1
+ 
+        Finished. Please run Mix again.
+ 
+```
+</details>
+
+
+<details>
+<summary>LaravelでのBrowsersync</summary>
+
+- `php artisan serve`: Webページをブラウザに提供し、ブラウザがコンパイル済みアセットを取得する
+- `npm run watch`: Webpackアセットのコンパイル「監視」を実行し、アセットソースファイルが変更されて再コンパイルされた場合、Webページを提供しない
+
+**Browsersyncとは**
+- Laravelを標準的にインストールしたら一緒に入ってくるファイル変更検知で自動ブラウザリロードの仕組み
+
+**Browsersyncを使ったリクエストをさばく仕組み**
+
+- リクエストをインターセプト
+  - BrowserSyncはListenしているhost、portでリクエストをインターセプト
+- proxy配下へリクエストをバケツリレー、なんか付加してブラウザへレスポンスを返却
+  - proxy配下へリクエスト内容をバケツリレー
+  - 配下から返却をBrowserSyncが取得
+  - BrowserSyncはリロードの仕組みを返却に付与
+  - レスポンスをブラウザへ返却
+
+**自動リロードの仕組み**
+
+- 上で、サーバー側からブラウザへ命令を送信できる仕組みできている
+- チェック設定のファイルの変更を検知
+  - 設定ファイルのfilesに設定した内容でファイルシステムの変更をチェック
+- 変更があればブラウザリロード命令を発行
+  - レスポンスに付与した仕組みを使ってブラウザへリロード命令を送る
+  - ブラウザは画面のリロードを実行
+
+**結論**
+- `php artisan serve`で8000番ポートでサーバからブラウザへ命令を送信できる仕組みを作る
+- `npm run watch`で3000番ポートを監視状態にして、自動リロードを実現する
+- つまり、8000番ポートをPHPサーバーとして起動していないと、3000番でのwatchが実現できない
+- 8000番で確認できる画面は自動リロードされる画面ではない(=80番ポートと等しい)
+
+</details>
