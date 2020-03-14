@@ -41,7 +41,6 @@
 - 写真を格納する￥テーブル
 - photos : likes = 1 : n
 - photos : comments = 1: n
-- table
 
 |  列名  |  型  |  PRIMARY  |  UNIQUE  |  NOT NULL  |  FOREIGN  |
 | ---- | ---- | ---- | ---- | ---- | ---- |
@@ -220,3 +219,42 @@ indent_size = 2
 ```
 - open blowser
 - http://localhost/
+
+**Frontend**
+
+- setup JavaScript
+```sh:
+root@615eb468b2ff:/var/www/laravel# npm install
+root@615eb468b2ff:/var/www/laravel# npm install -D vue
+```
+
+**LaravelMixについて**
+- Laravel,Vue,SCSSのコンパイルする仕組みが備わっているのでGripやWebpackの設定が不要になる
+- ビルドの際に設定ファイル webpack.mix.js が参照され、 Webpack の設定が動的に生成される
+
+**setup LaravelMix**
+```js:
+const mix = require('laravel-mix');
+
+// mix.js('resources/js/app.js', 'public/js').sass('resources/sass/app.scss', 'public/css');
+mix.browserSync({
+    proxy: '0.0.0.0:80',
+    open: false
+  })
+  .js('resources/js/app.js', 'public/js')
+  .version()
+```
+- browserSync: JavaScriptやPHPファイルが変更されたときに自動的にブラウザがリロードされるようになる
+- js: JavaScriptとVueコンポーネントをコンパイル
+- version: コンパイルしたファイルのバージョニングを有効化
+  - ブラウザは一度取得したファイルをキャッシュに保存するので、ファイルの内容を変更してもページに反映されないことがある
+  - これを有効にすることで、ビルドのたびにコンパイルしたファイルのURLにランダムな文字列が付けられる
+  - この機能はテンプレート側でmix関数と組み合わせて使用する
+  ```html:
+    <script src="{{ mix('js/app.js') }}" defer></script>
+  ```
+  - 上記が以下のようなHTMLに変換される
+  ```html:
+    <script src="/js/app.js?id=87459a9d906e11120dd5" defer=""></script>
+  ```
+  
