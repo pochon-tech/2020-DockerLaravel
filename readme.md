@@ -398,3 +398,84 @@ npm WARN notsup SKIPPING OPTIONAL DEPENDENCY: Unsupported platform for fsevents@
 - 8000番で確認できる画面は自動リロードされる画面ではない(=80番ポートと等しい)
 
 </details>
+
+### VueRouterの実装
+
+- VueRouterをインストール
+```sh:
+root@1d5a5d91dadb:/var/www/laravel# npm install -D vue-router
+```
+
+**ルートコンポーネントの作成**
+- `resources/js/App.vue`を作成
+```js:
+<template>
+  <div>
+    <main>
+      <div class="container">
+        <RouterView />
+      </div>
+    </main>
+  </div>
+</template>
+```
+- `<div id="app"></div>`にこのコンポーネントが描画される
+- `<RouterView />`: URLに対応するHTML部品が入れ替わって描画される
+
+**ページコンポーネントの作成**
+- `resources/js/pages/PhotoList.vue`を作成
+```js:
+<template>
+  <h1>Photo List</h1>
+</template>
+```
+- `resources/js/pages/Login.vue`を作成
+```js:
+<template>
+  <h1>Login</h1>
+</template>
+```
+
+**ルーティング定義**
+- `resources/js/router.js`を作成
+```js:
+import Vue from 'vue'
+import VueRouter from 'vue-router'
+
+import PhotoList from './pages/PhotoList.vue'
+import Login from './pages/Login.vue'
+
+// VueRouterプラグインを使用する (<RouterView />を利用可能にする)
+Vue.use(VueRouter)
+
+const routes = [
+  {
+    path: '/',
+    component: PhotoList
+  },
+  {
+    path: '/login',
+    component: Login
+  }
+]
+
+const router = new VueRouter({
+  routes
+})
+
+// app.jsでインポートするので、VueRouterインスタンスをエクスポート
+export default router
+```
+- `app.js`を編集
+```js:
+import Vue from 'vue'
+import router from './router'
+import App from './App.vue'
+
+new Vue({
+  el: '#app',
+  router,
+  components: { App },
+  template: '<App />'
+})
+```
