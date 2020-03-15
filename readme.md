@@ -792,9 +792,70 @@ Route::post('/login', 'Auth\LoginController@login')->name('login');
 - 最後にテストの実施を行う
 - テストコマンドは`./vendor/bin/phpunit --testdox`
 
+**ログアウトAPIの作成**
 
+- リクエスト: なにも受け取らない
+- レスポンス: ２００を返却 (デフォルトの挙動では認証成功後には定義されたページにリダイレクトするレスポンスを返却)
+- まずは、`php artisan make:test LogoutApiTest`を実行してテストコードを作成 
+- `tests/Feature/LogoutApiTest.php`が作成されるので以下の内容で編集
+```php:
+<?php
 
+namespace Tests\Feature;
 
+use App\User;
+use Tests\TestCase;
+use Illuminate\Foundation\Testing\WithFaker;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 
+class LogoutApiTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function setUp(): void
+    {
+        parent::setUp();
+        // テストユーザー作成
+        $this->user = factory(User::class)->create();
+    }
+
+    /**
+     * @test
+     */
+    public function should_認証済みのユーザーをログアウトさせる()
+    {
+        $response = $this->actingAs($this->user)->json('POST', route('logout'));
+
+        $response->assertStatus(200);
+        $this->assertGuest();
+    }
+}
+```
+
+- 続いて、`routes/api.php`にルート定義
+```php:
+Route::post('/logout', 'Auth\LoginController@logout')->name('logout');
+```
+
+- 続いて、`app/Http/Controllers/Auth/LoginController.php` にloggedOut追加
+```php:
+    /**
+     * tips
+     * 下記を追加した理由: ログインと同じ理由
+     */
+    protected function loggedOut(Request $request)
+    {
+        // セッションIDの再生成
+        // 悪意のあるユーザからの、アプリケーションに対するsession fixation攻撃(セッション固定攻撃)を防ぐために行う
+        // Laravelに組み込まれているLoginControllerを使用していれば、認証中にセッションIDは自動的に再生性される
+        // セッションIDを任意に再生成する必要がある場合は、下記のようにregenerateメソッドを実行する
+        $request->session()->regenerate();
+    
+        return response()->json();
+    }
+```
+
+- 最後にテストの実施を行う
+- テストコマンドは`./vendor/bin/phpunit --testdox`
 
 

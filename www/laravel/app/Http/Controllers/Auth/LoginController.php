@@ -52,4 +52,19 @@ class LoginController extends Controller
     {
         return $user;
     }
+    /**
+     * tips
+     * 下記を追加した理由: ログインと同じ理由
+     */
+    protected function loggedOut(Request $request)
+    {
+        
+        // セッションIDの再生成
+        // 悪意のあるユーザからの、アプリケーションに対するsession fixation攻撃(セッション固定攻撃)を防ぐために行う
+        // Laravelに組み込まれているLoginControllerを使用していれば、認証中にセッションIDは自動的に再生性される
+        // セッションIDを任意に再生成する必要がある場合は、下記のようにregenerateメソッドを実行する
+        $request->session()->regenerate();
+    
+        return response()->json();
+    }
 }
