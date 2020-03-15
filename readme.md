@@ -4,7 +4,9 @@
 
 - [命名規則](https://webdevetc.com/blog/laravel-naming-conventions)
 - [DBからEloquent Model自動生成](https://github.com/krlove/eloquent-model-generator)
-
+- VSCODEでの開発の場合に入れておくと良い
+  - PHP-intellisense
+  - PHPIntelephense
 ### 機能一覧
 
 - 写真一覧
@@ -479,3 +481,211 @@ new Vue({
   template: '<App />'
 })
 ```
+
+### 認証APIの作成
+- APIと画面のルート定義は別々のファイルに記述した方が分かりやすい
+- 前回画面を返却するルートを定義した`routes/web.php`ではなく`api.php`に記載する
+
+**RouteServiceProviderを編集する**
+- 今回実装する API は内部からしか呼ばれない上にクッキー認証を行うステートフルなものを想定している
+- そのため、ミドルウェアグループは画面と同じwebに設定する (ここは分けても良いかもしれない)
+  - apiミドルウェアグループでは本来、外部のアプリケーションから呼び出されるようなステートレスなWebAPIが想定されているので、セッションやクッキー、CSRF トークンを扱うミドルウェアが含まれていない
+  - つまり、トークンを利用して認証状態をチェックするものでありステートレスであることが前提である
+  - ようするに、サーバーサイドでレンダリングして、一部分だけAPI経由でデータを取得したいがために、ログインセッションを使って認証済みならデータを取得するAPIを作ろうとするときが不便
+  - LaravelにおいてセッションIDを利用して簡易的にAPI作るやり方として、今回はミドルウェアグループをwebに設定している
+- `RouteServiceProvider`を編集して`routes/api.php`に記述したルート定義に適用されるミドルウェアグループは`api`だが、それを`web`に変更
+- `RouteServiceProvider`とはアプリケーションの起動時にルート定義を読み込むためのクラス
+- ミドルウェアグループの定義は`app/Http/Kernel.php`に記述されている
+- `app/Providers/RouteServiceProvider.php`を下記のように編集する
+```php:
+protected function mapApiRoutes()
+{
+  Route::prefix('api')
+        ->middleware('web')
+        ->namespace($this->namespace)
+        ->group(base_path('routes/api.php'));
+}
+```
+
+**テストの準備**
+- ここでは、APIの動作を確かめるためにテストコードを準備する
+- そのため失敗するテストケースや入力値バリデーションを一つずつ確かめるテストケースなどは記述しない
+- またテストには、インメモリのSQLiteを用いる
+- インメモリのSQLiteを利用するのでテスト実行が終わると消去され無駄なデータが残らなくてすむ
+- `config/database.php`の`connections`に以下の接続情報を追加
+```php:
+    'connections' => [
+        // テスト用
+        'sqlite_testing' => [
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+            'prefix' => '',
+        ],
+```
+- `phpunit.xml`にDB接続の設定を追記
+```xml:
+    <php>
+        <server name="APP_ENV" value="testing"/>
+        <env name="DB_CONNECTION" value="sqlite_testing"/> <!-- テスト用 -->
+```
+
+**会員登録APIの作成**
+- リクエスト: name,email,password,password_confirmationを受け取る
+- レスポンス: 登録ユーザーの情報を返却
+- まずは、`php artisan make:test RegisterApiTest`を実行してテストコードを作成 
+- `tests/Feature/RegisterApiTest.php`が作成されるので以下の内容で編集
+```php:
+<?php
+
+namespace Tests\Feature;
+
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\WithFaker;
+use Tests\TestCase;
+use App\User;
+
+class RegisterApiTest extends TestCase
+{
+    use RefreshDatabase;
+    /**
+     * @test
+     */
+    public function should_新規にユーザを作成して返却()
+    {
+        $data = [
+            'name' => 'Yamda Tarou',
+            'email' => 'yamada@email.com',
+            'password' => 'password',
+            'password_confirmation' => 'password',
+        ];
+        $response = $this->json('POST', route('register'), $data);
+        
+        $user = User::first();
+        $this->assertEquals($data['name'], $user->name);
+        
+        /**
+         *  tips
+         *  assertStatus:
+         *    クライアントのレスポンスが指定したHTTPステータスコードであることを宣言
+         *  assertJson:
+         *    レスポンスを配列へ変換
+         *    PHPUnit::assertArraySubsetを使用しアプリケーションへ戻ってきたJSONレスポンスの中に、指定された配列が含まれているかを確認
+         */
+        $response->assertStatus(201)->assertJson(['name' => $user->name]);
+    }
+}
+```
+- 続いて、`routes/api.php`にルート定義
+```php:
+<?php
+
+use Illuminate\Http\Request;
+
+// Route::middleware('auth:api')->get('/user', function (Request $request) {
+//     return $request->user();
+// });
+Route::post('/register', 'Auth\RegisterController@register')->name('register');
+```
+- 続いて、`app/Http/Controllers/Auth/RegisterController.php`を編集
+```php:
+    /**
+     * tips
+     * 下記を追加した理由:
+     * トレイトであるIlluminate\Foundation\Auth\RegistersUsersを参照
+     * registerメソッドの最後のreturn文でregisteredメソッドが呼ばれ、その戻り値が偽値だった場合にはredirect関数が呼ばれる仕組みになっている
+     * registered メソッド自体は中身が実装されていない
+     * デフォルトではredirect関数が呼ばれるようになっていて、このレスポンスをカスタマイズしたい場合はトレイトを使用している
+     * なので下記でregisteredメソッドの中身を実装して上書きしている
+     */
+    protected function registered(Request $request, $user)
+    {
+        return $user;
+    }
+```
+- 最後にテストの実施を行う
+- テストコマンドは`./vendor/bin/phpunit --testdox`
+
+<details>
+<summary>テストでエラーが起きる場合のデバックエラーについて</summary>
+
+- テストをしてみたらエラーが起きた
+```sh:
+root@1d5a5d91dadb:/var/www/laravel# ./vendor/bin/phpunit --testdox
+
+ ✘ Should 新規にユーザを作成して返却
+   ┐
+   ├ Expected status code 201 but received 500.
+   ├ Failed asserting that false is true.      
+   │
+   ╵ /var/www/laravel/vendor/laravel/framework/src/Illuminate/Foundation/Testing/TestResponse.php:185
+   ╵ /var/www/laravel/tests/Feature/RegisterApiTest.php:40
+   ┴
+
+FAILURES!
+Tests: 3, Assertions: 4, Failures: 1.
+```
+- こういった場合は[dd関数を使うと良い](https://readouble.com/laravel/5.5/ja/helpers.html#method-dd)
+- 上記の例だと、`Expected status code 201 but received 500`というエラーがあるのでResponse周りが怪しい
+- テストファイルでデバックをしてみる
+
+```php:
+
+class RegisterApiTest extends TestCase
+{
+    use RefreshDatabase;
+    /**
+     * @test
+     */
+    public function should_新規にユーザを作成して返却()
+    {
+        $data = [
+            'name' => 'Yamda Tarou',
+            'email' => 'yamada@email.com',
+            'password' => 'password',
+            'password_confirmation' => 'password',
+        ];
+        $response = $this->json('POST', route('register'), $data);
+        dd($response); // 追加
+```
+```sh:
+root@1d5a5d91dadb:/var/www/laravel# ./vendor/bin/phpunit --testdox
+
+    ]
+    +exception: Symfony\Component\Debug\Exception\FatalThrowableError^ {#1477
+      -originalClassName: "TypeError"
+      #message: "Argument 1 passed to App\Http\Controllers\Auth\RegisterController::registered() must be an instance of App\Http\Controllers\Auth\Request, instance of Illuminate\Http\Request given, called in /var/www/laravel/vendor/laravel/framework/src/Illuminate/Foundation/Auth/RegistersUsers.php on line 37"
+      #code: 0
+      #file: "./app/Http/Controllers/Auth/RegisterController.php"
+      #line: 83
+      #severity: E_RECOVERABLE_ERROR
+      trace: {
+        ./app/Http/Controllers/Auth/RegisterController.php:83 {
+          App\Http\Controllers\Auth\RegisterController->registered(Request $request, $user)^
+          ›  */
+          › protected function registered(Request $request, $user)
+          › {
+```
+- 明らかにRegisterController周りでエラーが起きている
+- 原因は`Request $request, $user)`の部分のRequestが不明というエラー
+- どうやら`use Illuminate\Http\Request;`が抜けていたらしい
+- 対処後に再度テストしたらクリアした
+```sh:
+
+root@1d5a5d91dadb:/var/www/laravel# ./vendor/bin/phpunit --testdox
+PHPUnit 8.5.2 by Sebastian Bergmann and contributors.
+
+Example (Tests\Unit\Example)
+ ✔ Basic test
+
+Example (Tests\Feature\Example)
+ ✔ Basic test
+
+Register Api (Tests\Feature\RegisterApi)
+ ✔ Should 新規にユーザを作成して返却
+
+Time: 3.62 seconds, Memory: 24.00 MB
+
+OK (3 tests, 5 assertions)
+```
+</details>
+

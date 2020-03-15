@@ -8,6 +8,7 @@ use App\User;
 use Illuminate\Foundation\Auth\RegistersUsers;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Http\Request;
 
 class RegisterController extends Controller
 {
@@ -69,5 +70,18 @@ class RegisterController extends Controller
             'email' => $data['email'],
             'password' => Hash::make($data['password']),
         ]);
+    }
+    /**
+     * tips
+     * 下記を追加した理由:
+     * トレイトであるIlluminate\Foundation\Auth\RegistersUsersを参照
+     * registerメソッドの最後のreturn文でregisteredメソッドが呼ばれ、その戻り値が偽値だった場合にはredirect関数が呼ばれる仕組みになっている
+     * registered メソッド自体は中身が実装されていない
+     * デフォルトではredirect関数が呼ばれるようになっていて、このレスポンスをカスタマイズしたい場合はトレイトを使用している
+     * なので下記でregisteredメソッドの中身を実装して上書きしている
+     */
+    protected function registered(Request $request, $user)
+    {
+        return $user;
     }
 }
