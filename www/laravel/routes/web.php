@@ -10,6 +10,6 @@
 | contains the "web" middleware group. Now create something great!
 |
 */
-// TODO: アロー関数だとパースエラーが発生: phpは7.4に設定済
-// Route::get('/{any?}', fn() => view('index'))->where('any', '.+');
-Route::get('/{any?}', function() { return view('index'); })->where('any', '.+');
+// TODO: アロー関数だとパースエラーが発生: phpは7.4に設定済 -> 解決：ホストOS側のPHPを7.4にした
+Route::get('/{any?}', fn() => view('index'))->where('any', '.+');
+// Route::get('/{any?}', function() { return view('index'); })->where('any', '.+');
