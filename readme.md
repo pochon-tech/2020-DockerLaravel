@@ -482,7 +482,8 @@ new Vue({
 })
 ```
 
-### 認証APIの作成
+### APIの実装
+- 認証機能は、デフォルトで備えられているものを使用
 - APIと画面のルート定義は別々のファイルに記述した方が分かりやすい
 - 前回画面を返却するルートを定義した`routes/web.php`ではなく`api.php`に記載する
 
@@ -531,7 +532,7 @@ protected function mapApiRoutes()
 
 **会員登録APIの作成**
 - リクエスト: name,email,password,password_confirmationを受け取る
-- レスポンス: 登録ユーザーの情報を返却
+- レスポンス: 登録ユーザーの情報を返却 (デフォルトの挙動では登録成功後には定義されたページにリダイレクトするレスポンスを返却)
 - まずは、`php artisan make:test RegisterApiTest`を実行してテストコードを作成 
 - `tests/Feature/RegisterApiTest.php`が作成されるので以下の内容で編集
 ```php:
@@ -546,6 +547,13 @@ use App\User;
 
 class RegisterApiTest extends TestCase
 {
+    /**
+     * tips
+     * RefreshDatabase:
+     *   前のテストがその後のテストデータに影響しないように、各テストの後にデータベースをリセット
+     *   インメモリデータベースを使っていても、トラディショナルなデータベースを使用していても、
+     *   RefreshDatabaseトレイトにより、マイグレーションに最適なアプローチが取れる
+     */
     use RefreshDatabase;
     /**
      * @test
@@ -575,6 +583,9 @@ class RegisterApiTest extends TestCase
     }
 }
 ```
+- ※テスト関数には`@test`を付与するようにする
+- `$this->json('METHOD', 'URL', [])`でJSONAPIのテストを行うことができる
+- `route('register')`は、ルーティングに定義されたURIを吐き出す
 - 続いて、`routes/api.php`にルート定義
 ```php:
 <?php
@@ -688,4 +699,102 @@ Time: 3.62 seconds, Memory: 24.00 MB
 OK (3 tests, 5 assertions)
 ```
 </details>
+
+**ログインAPIの作成**
+
+- リクエスト: email,passwordを受け取る
+- レスポンス: 登録ユーザーの情報を返却 (デフォルトの挙動では認証成功後には定義されたページにリダイレクトするレスポンスを返却)
+- まずは、`php artisan make:test LoginApiTest`を実行してテストコードを作成 
+- `tests/Feature/LoginApiTest.php`が作成されるので以下の内容で編集
+```php:
+<?php
+
+namespace Tests\Feature;
+
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Foundation\Testing\WithFaker;
+use Tests\TestCase;
+use App\User;
+
+class LoginApiTest extends TestCase
+{
+
+    use RefreshDatabase;
+
+    public function setUp(): void
+    {
+        parent::setUp();
+        // テストユーザー作成
+        $this->user = factory(User::class)->create();
+    }
+    
+    /**
+     * @test
+     */
+    public function should_登録済ユーザを認証して返す()
+    {
+        $response = $this->json('POST', route('login'), [
+            'email' => $this->user->email,
+            'password' => 'password'
+        ]);
+        $response->assertStatus(200)->assertJson(['name' => $this->user->name]);
+        $this->assertAuthenticatedAs($this->user);
+    }
+}
+```
+
+<details>
+<summary>上記の解説</summary>
+
+**RefreshDatabase**
+- RefreshDatabaseトレイトを使用してデータベースをクリアリング
+
+**setUp**
+- このテストクラスの各メソッドの開始前に必ず呼ばれるメソッド
+- メソッドの数だけコールされる
+- テストの準備としてテストデータを作成している
+
+**factory()**
+- テストファイルのsetup()関数に記述された`$this->user = factory(User::class)->create();`について
+- これは、[モデルの保存](https://readouble.com/laravel/5.5/ja/database-testing.html)の方法である
+- 引数で指定したモデルインスタンスを生成し、Eloquentのsaveメソッドを使用しデータベースへ保存すると同義
+- また作成されるデータは`www/laravel/database/factories/UserFactory.php`に定義されている (passwordは'password'のハッシュ値)
+
+**assertAuthenticatedAs**
+- 引数で指定したユーザーが認証されているかどうかの判定を行う
+
+</details>
+
+- 続いて、`routes/api.php`にルート定義
+```php:
+Route::post('/login', 'Auth\LoginController@login')->name('login');
+```
+
+- 続いて、`app/Http/Controllers/Auth/LoginController.php`を編集
+```php:
+    use Illuminate\Http\Request;
+  
+    /**
+     * tips
+     * 下記を追加した理由: (会員登録と同様)
+     * トレイトであるIlluminate\Foundation\Auth\AuthenticatesUsersを参照
+     * loginメソッドでログイン成功時にsendLoginResponseメソッドが呼ばれる
+     * sendLoginResponseメソッドのreturn文でレスポンスが決まる
+     * return 文では実装が空の authenticated メソッドが呼ばれて、戻り値が偽であった場合にリダイレクトレスポンスが返されてる
+     * なので下記でauthenticated メソッドをオーバーライドすればレスポンスをカスタマイズできる
+     */
+    protected function authenticated(Request $request, $user)
+    {
+        return $user;
+    }
+```
+
+- 最後にテストの実施を行う
+- テストコマンドは`./vendor/bin/phpunit --testdox`
+
+
+
+
+
+
 

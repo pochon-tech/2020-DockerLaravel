@@ -9,6 +9,13 @@ use App\User;
 
 class RegisterApiTest extends TestCase
 {
+    /**
+     * tips
+     * RefreshDatabase:
+     *   前のテストがその後のテストデータに影響しないように、各テストの後にデータベースをリセット
+     *   インメモリデータベースを使っていても、トラディショナルなデータベースを使用していても、
+     *   RefreshDatabaseトレイトにより、マイグレーションに最適なアプローチが取れる
+     */
     use RefreshDatabase;
 
     /**
