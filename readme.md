@@ -858,4 +858,149 @@ Route::post('/logout', 'Auth\LoginController@logout')->name('logout');
 - 最後にテストの実施を行う
 - テストコマンドは`./vendor/bin/phpunit --testdox`
 
+### 認証ページの作成
+
+**ヘッダ/フッダの作成**
+- ログイン画面へのリンクを配置するヘッダーとフッターを追加する
+- まずは、ヘッダーコンポーネントを作成する
+- `resources/js/components/Navbar.vue`を作成する
+```html:
+<template>
+  <nav class="navbar">
+    <RouterLink class="navbar__brand" to="/">TOP</RouterLink>
+    <div class="navbar__menu">
+      <div class="navbar__item">
+        <button class="button">
+          <i class="icon ion-md-add"></i>Submit a photo
+        </button>
+      </div>
+      <span class="navbar__item">
+        username
+      </span>
+      <div class="navbar__item">>
+        <RouterLink class="button button--link" to="/login">Login / Register</RouterLink>
+      </div>
+    </div>
+  </nav>
+</template>
+```
+- RouterLinkはRouterViewと同様、Vue Router から提供されているコンポーネント
+- 機能的にはアンカーリンクとほぼ同じ
+- 普通のアンカーリンクと挙動が大きく異なるのは通常の画面遷移（＝サーバサイドへの GET リクエスト）が発生しない
+- RouterLinkで描画したリンクをクリックすると、フロントエンドでの画面繊維、つまりVue Routerによるコンポーネントの切り替わりが発生
+- 次にフッターコンポーネントを作成する
+- `resources/js/components/Footer.vue`を作成
+```html:
+<template>
+  <footer class="footer">
+    <button class="button button--link">Logout</button>
+    <RouterLink class="button button--link" to="/login">Login / Register</RouterLink>
+  </footer>
+</template>
+```
+- App.vueにコンポーネントを読み込む
+```html:
+<template>
+  <div>
+    <header><Navbar /></header>
+    <main>
+      <div class="container">
+        <RouterView />
+      </div>
+    </main>
+    <Footer />
+  </div>
+</template>
+<script>
+import Navbar from './components/Navbar'
+import Footer from './components/Footer'
+
+export default {
+  components: {
+    Navbar,
+    Footer
+  }
+}
+</script>
+```
+- 続いて、ログインページおよび会員登録ページの作成
+<details>
+<summary>ソースコード</summary>
+
+- ログインページと会員登録ページは同じページコンポーネントに実装してタブで切り替える
+- resources/js/pages/Login.vue
+```html:
+<template>
+  <div class="container--small">
+    <ul class="tab">
+      <li
+        class="tab__item"
+        :class="{'tab__item--active': tab === 1 }"
+        @click="tab = 1"
+      >Login</li>
+      <li
+        class="tab__item"
+        :class="{'tab__item--active': tab === 2 }"
+        @click="tab = 2"
+      >Register</li>
+    </ul>
+    <div class="panel" v-show="tab === 1">
+      <form class="form" @submit.prevent="login">
+        <label for="login-email">Email</label>
+        <input type="text" class="form__item" id="login-email" v-model="loginForm.email">
+        <label for="login-password">Password</label>
+        <input type="password" class="form__item" id="login-password" v-model="loginForm.password">
+        <div class="form__button">
+          <button type="submit" class="button button--inverse">login</button>
+        </div>
+      </form>
+    </div>
+    <div class="panel" v-show="tab === 2">
+      <form class="form" @submit.prevent="register">
+        <label for="username">Name</label>
+        <input type="text" class="form__item" id="username" v-model="registerForm.name">
+        <label for="email">Email</label>
+        <input type="text" class="form__item" id="email" v-model="registerForm.email">
+        <label for="password">Password</label>
+        <input type="password" class="form__item" id="password" v-model="registerForm.password">
+        <label for="password-confirmation">Password (confirm)</label>
+        <input type="password" class="form__item" id="password-confirmation" v-model="registerForm.password_confirmation">
+        <div class="form__button">
+          <button type="submit" class="button button--inverse">register</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</template>
+
+<script>
+export default {
+  data() {
+    return {
+      tab: 1,
+      loginForm: {
+        email: '',
+        password: ''
+      },
+      registerForm: {
+        name: '',
+        email: '',
+        password: '',
+        password_confirmation: ''
+      }
+    }
+  },
+  methods: {
+    login() {
+      console.log(this.loginForm)
+    },
+    register() {
+      console.log(this.registerForm)
+    }
+  }
+}
+</script>
+```
+
+</details>
 
